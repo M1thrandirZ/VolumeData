@@ -22,8 +22,9 @@ class VolumeData:
             dataMatrix = np.zeros(len(dataArray))
             for k in range(0, len(dataArray)):
                 dataMatrix[k] = dataArray[k]
+            self.dataArray_int = dataMatrix  # 数据一维形式，int类型
             dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
-            self.dataArray = dataArray  # 数据的线性结构
+            self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
             self.dataMatrix = dataMatrix  # 带位置信息的数据结构
             self.count = len(dataArray)  # 数据点的个数
         else:
@@ -31,29 +32,30 @@ class VolumeData:
 
     # 保存为二进制文件
     def Save_Data(self):
-        if isinstance(self.dataArray, bytes):
+        if isinstance(self.dataArray_bytes, bytes):
             root = tk.Tk()
             root.withdraw()
             file_path = fd.asksaveasfilename()
             f = open(file=file_path, mode='wb')
-            f.write(self.dataArray)
+            f.write(self.dataArray_bytes)
             f.close()
 
     # 对体数据进行插值，边界处的数据保持不变，仅在体数据内部插值，修改dataMatrix和dataArray
-    def Interpolation(self):
-        # 构造插值后的矩阵
-        # res = np.zeros((self.dataDimension[0] * 2 - 1, self.dataDimension[1] * 2 - 1, self.dataDimension[2] * 2 - 1))
-        # # 先将6个面上的原数据填入
-        # res[0::2, 0::2, 0] = self.dataMatrix[:, :, 0]
-        # res[0::2, 0::2, self.dataDimension[2] * 2 - 2] = self.dataMatrix[:, :, self.dataDimension[2] - 1]
-        # res[0::2, 0, 0::2] = self.dataMatrix[:, 0, :]
-        # res[0::2, self.dataDimension[1] * 2 - 2, 0::2] = self.dataMatrix[:, self.dataDimension[1]-1, :]
-        # res[0, 0::2, 0::2] = self.dataMatrix[0, :, :]
-        # res[self.dataDimension[0] * 2 - 2, 0::2, 0::2] = self.dataMatrix[self.dataDimension[0]-1, :, :]
+    def Interpolation(self, t):
 
-        # #插入原始的数据点
-        # for i in range(0,self.dataDimension[2]):
-        #     res[0::2, 0::2, 2*i] = self.dataMatrix[:, :, i]
-
-        # self.dataMatrix = res
-
+        # 让原数据坐标膨胀
+        datagrid = np.argwhere(self.dataMatrix > -1) * t
+        # 数据点的值
+        datavalue = self.dataArray_int
+        # 构造插值后数据点的坐标
+        res_x, res_y, res_z = np.mgrid[0:self.dataDimension[0] * t:1, 0:self.dataDimension[1] * t:1,
+                              0:self.dataDimension[2] * t:1]
+        self.dataArray_int = griddata(datagrid, datavalue, (res_x, res_y, res_z), method='nearest')  # 更新实例的int型一维数据
+        self.dataArray_bytes = self.dataArray_int.tobytes()  # 更新实例的bytes型一维数据
+        self.count = len(self.dataArray_bytes)  # 更新实例的数据数量
+        temp = np.array(
+            [self.dataDimension[0] * t, self.dataDimension[1] * t, self.dataDimension[2] * t, self.dataDimension[3]])
+        self.dataDimension = temp  # 更新数据维度属性
+        self.dataMatrix = self.dataArray_int.reshape(
+            (self.dataDimension[0], self.dataDimension[0], self.dataDimension[0]))
+        print(self.dataMatrix)

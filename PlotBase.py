@@ -14,7 +14,7 @@ def DrawData_Scatter(data: DB.VolumeData, t):  # 传入定义好的VolumeData类
     # 先计算满足条件t的数据个数
     con = 0
     for i in range(data.count):
-        if data.dataArray[i] > t:
+        if data.dataArray_bytes[i] > t:
             con = con + 1
     # 构造用于绘制的数组
     dataColum = np.zeros((con, 4))  # 四列向量，前三个是点的空间位置，最后一个是数值
