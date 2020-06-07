@@ -49,7 +49,7 @@ def DrawData_voxels(data: DB.VolumeData, t):  # 传入定义好的VolumeData类�
     # color[..., 3] = np.clip(data.dataMatrix / 255,0,0.5)  # 透明度分量，上限截取在0.5
 
     hsv = np.zeros(filled.shape + (3,))
-    hsv[..., 0] = data.dataMatrix / 255  # hue,色相，范围[0,1]
+    hsv[..., 0] = data.dataMatrix / 255  # hue,色相
     hsv[..., 1] = 0.5  # saturation，饱和度，范围[0,1]
     hsv[..., 2] = 0.8  # value，明度，范围[0,1]
     color = matplotlib.colors.hsv_to_rgb(hsv)

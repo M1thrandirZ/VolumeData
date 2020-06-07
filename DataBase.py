@@ -4,7 +4,6 @@ import tkinter.filedialog as fd
 import numpy as np
 from scipy.interpolate import griddata
 
-
 class VolumeData:
     """体数据的类"""
 
@@ -40,7 +39,7 @@ class VolumeData:
             f.write(self.dataArray_bytes)
             f.close()
 
-    # 对体数据进行插值，边界处的数据保持不变，仅在体数据内部插值，修改dataMatrix和dataArray
+    # 对体数据进行插值，t为扩大系数
     def Interpolation(self, t):
 
         # 让原数据坐标膨胀
@@ -50,12 +49,33 @@ class VolumeData:
         # 构造插值后数据点的坐标
         res_x, res_y, res_z = np.mgrid[0:self.dataDimension[0] * t:1, 0:self.dataDimension[1] * t:1,
                               0:self.dataDimension[2] * t:1]
-        self.dataArray_int = griddata(datagrid, datavalue, (res_x, res_y, res_z), method='nearest')  # 更新实例的int型一维数据
+        self.dataArray_int = griddata(datagrid, datavalue, (res_x, res_y, res_z), method='nearest').reshape((1,-1))  # 更新实例的int型一维数据
         self.dataArray_bytes = self.dataArray_int.tobytes()  # 更新实例的bytes型一维数据
-        self.count = len(self.dataArray_bytes)  # 更新实例的数据数量
+        self.count = len(self.dataArray_int)  # 更新实例的数据数量
         temp = np.array(
             [self.dataDimension[0] * t, self.dataDimension[1] * t, self.dataDimension[2] * t, self.dataDimension[3]])
         self.dataDimension = temp  # 更新数据维度属性
-        self.dataMatrix = self.dataArray_int.reshape(
+        self.dataMatrix = self.dataArray_int.reshape(  # 更新体数据的三维尺寸
             (self.dataDimension[0], self.dataDimension[0], self.dataDimension[0]))
-        print(self.dataMatrix)
+
+    # 对数据进行缩减，t为缩减系数
+    def downsample(self, t):
+
+        # 降采样之后数据的尺寸
+        newX = self.dataDimension[0] // t
+        newY = self.dataDimension[1] // t
+        newZ = self.dataDimension[2] // t
+
+        if newX > 0 and newY > 0 and newZ > 0:
+            res = np.zeros((newX, newY, newZ))
+            for z in range(newZ):
+                for y in range(newY):
+                    for x in range(newX):
+                        res[x, y, z] = self.dataMatrix[x * t, y * t, z * t]
+
+        self.dataMatrix = res  # 更新体数据
+        self.dataArray_int = self.dataMatrix.reshape((1, -1))  # 更新int型的一维数据
+        self.dataArray_bytes = self.dataArray_int.tobytes()  # 更新bytes型的一维数据
+        self.count = len(self.dataArray_int)  # 更新数据长度
+        self.dataDimension = np.array([newX, newY, newZ, self.dataDimension[3]])  # 更新数据维度
+
