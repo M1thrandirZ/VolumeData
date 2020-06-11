@@ -3,6 +3,13 @@ import tkinter as tk
 import tkinter.filedialog as fd
 import numpy as np
 from scipy.interpolate import griddata
+import mcubes as mc
+import struct
+import vtk
+import vtkmodules.all as vtk
+from vtkmodules.util.numpy_support import numpy_to_vtk as numpy2vtk
+from vtkmodules.util.numpy_support import vtk_to_numpy as vtk2numpy
+
 
 class VolumeData:
     """体数据的类"""
@@ -18,14 +25,34 @@ class VolumeData:
             dataArray = f.read()
             f.close()
             # 制作体数据，将数值放在对应的坐标位置
-            dataMatrix = np.zeros(len(dataArray))
-            for k in range(0, len(dataArray)):
-                dataMatrix[k] = dataArray[k]
-            self.dataArray_int = dataMatrix  # 数据一维形式，int类型
-            dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
-            self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
-            self.dataMatrix = dataMatrix  # 带位置信息的数据结构
-            self.count = len(dataArray)  # 数据点的个数
+            if filedimention[3] == 8:  # 一个字节代表一个数值
+                dataMatrix = np.zeros(len(dataArray))
+                for k in range(0, len(dataArray)):
+                    dataMatrix[k] = dataArray[k]
+                self.dataArray_int = dataMatrix  # 数据一维形式，int类型
+                dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
+                self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
+                self.dataMatrix = dataMatrix  # 带位置信息的数据结构
+                self.count = len(dataArray)  # 数据点的个数
+            else:  # 两个字节代表一个数值
+                # hex=dataArray.hex()
+                # count=int(len(hex)/4)
+                # dataMatrix = np.zeros(count)
+                # for k in range(0, count):
+                #     string_temp=hex[k]+hex[k+1]
+                #     dataMatrix[k] = int(string_temp,16)
+
+                count = int(len(dataArray) / 2)
+                dataMatrix = np.zeros(count)
+                for k in range(0, count):
+                    dataMatrix[k]=dataArray[2*k]*16**2+dataArray[2*k+1]
+
+                self.dataArray_int = dataMatrix  # 数据一维形式，int类型
+                dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
+                self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
+                self.dataMatrix = dataMatrix  # 带位置信息的数据结构
+                self.count = count  # 数据点的个数
+
         else:
             print("输入不正确")
 
@@ -49,7 +76,8 @@ class VolumeData:
         # 构造插值后数据点的坐标
         res_x, res_y, res_z = np.mgrid[0:self.dataDimension[0] * t:1, 0:self.dataDimension[1] * t:1,
                               0:self.dataDimension[2] * t:1]
-        self.dataArray_int = griddata(datagrid, datavalue, (res_x, res_y, res_z), method='nearest').reshape((1,-1))  # 更新实例的int型一维数据
+        self.dataArray_int = griddata(datagrid, datavalue, (res_x, res_y, res_z), method='nearest').reshape(
+            (1, -1))  # 更新实例的int型一维数据
         self.dataArray_bytes = self.dataArray_int.tobytes()  # 更新实例的bytes型一维数据
         self.count = len(self.dataArray_int)  # 更新实例的数据数量
         temp = np.array(
@@ -79,3 +107,7 @@ class VolumeData:
         self.count = len(self.dataArray_int)  # 更新数据长度
         self.dataDimension = np.array([newX, newY, newZ, self.dataDimension[3]])  # 更新数据维度
 
+    # 提取等值面，t是等值面的值，返回定点和三角形，精度不太高
+    def MarshingCubes(self, t):
+        vertices, triangles = mc.marching_cubes(self.dataMatrix, t)
+        return vertices, triangles
