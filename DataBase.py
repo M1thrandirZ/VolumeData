@@ -34,14 +34,7 @@ class VolumeData:
                 self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
                 self.dataMatrix = dataMatrix  # 带位置信息的数据结构
                 self.count = len(dataArray)  # 数据点的个数
-            else:  # 两个字节代表一个数值
-                # hex=dataArray.hex()
-                # count=int(len(hex)/4)
-                # dataMatrix = np.zeros(count)
-                # for k in range(0, count):
-                #     string_temp=hex[k]+hex[k+1]
-                #     dataMatrix[k] = int(string_temp,16)
-
+            else:
                 count = int(len(dataArray) / 2)
                 dataMatrix = np.zeros(count)
                 for k in range(0, count):

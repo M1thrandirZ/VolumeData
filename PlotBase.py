@@ -6,6 +6,9 @@ from matplotlib import cm
 from mpl_toolkits.mplot3d import axes3d
 import vtkmodules.all as vtk
 from vtkmodules.util.numpy_support import numpy_to_vtk as numpy2vtk
+from vtkmodules.util.numpy_support import vtk_to_numpy as vtk2numpy
+from matplotlib import ticker, cm, colors
+import math
 
 
 # 散点图画体数据，仅绘制大于t的数据
@@ -92,7 +95,8 @@ def DrawISO(data: DB.VolumeData, t):
     plt.show()
 
 
-def VTKMarshingCubes(data: DB.VolumeData, t):
+# vtk方法画等值面
+def DrawVTKMarshingCubes(data: DB.VolumeData, t):
     # # 1. 读取数据
     # cube = vtk.vtkCubeSource()
     # cube.Update()  # 记得加这句不加看不到模型
@@ -122,6 +126,7 @@ def VTKMarshingCubes(data: DB.VolumeData, t):
     # interactor.Start()
 
     # 从numpy得到vtk的数组数据类型
+
     vtkdataArray = numpy2vtk(num_array=data.dataMatrix.ravel(), deep=True, array_type=vtk.VTK_FLOAT)
     # 定义一种source，vtkImageData
     vtkImageData = vtk.vtkImageData()
@@ -201,5 +206,212 @@ def VTKMarshingCubes(data: DB.VolumeData, t):
     widet.SetEnabled(1)  # 使能
     widet.InteractiveOn()  # 交互开
 
-    Win.Render()
+    # Win.Render()
     Inter.Start()
+
+
+# vtk方法体绘制
+def DrawVTKVolumeRendering(data: DB.VolumeData):
+    # 读数据source
+    vtkdataArray = numpy2vtk(num_array=data.dataMatrix.ravel(), array_type=vtk.VTK_FLOAT)
+    # 定义一种source，vtkImageData
+    vtkImageData = vtk.vtkImageData()
+    # 定义vtkImageData的各种属性
+    vtkImageData.SetDimensions(np.shape(data.dataMatrix))
+    vtkImageData.SetSpacing(1, 1, 1)
+    vtkImageData.GetPointData().SetScalars(vtkdataArray)
+
+    # 用vtk读raw数据，数据顺序有问题
+    # imagereader = vtk.vtkImageReader()
+    # imagereader.SetFileName(data.dataPath)
+    # imagereader.SetFileDimensionality(3)
+    # imagereader.SetDataScalarType(vtk.VTK_UNSIGNED_CHAR)
+    # imagereader.SetDataExtent(0, data.dataDimension[0] - 1, 0, data.dataDimension[1] - 1, 0, data.dataDimension[2] - 1)
+    # imagereader.SetDataSpacing(1, 1, 1)
+    # imagereader.SetDataOrigin(0.0, 0.0, 0.0)
+    # imagereader.Update()
+
+    #转换数据类型
+    # imageCast = vtk.vtkImageCast()
+    # imageCast.SetInputConnection(imagereader.GetOutputPort())
+    # imageCast.SetOutputScalarTypeToUnsignedShort()
+    # imageCast.ClampOverflowOn()
+    # imageCast.Update()
+
+    # 验证是否将数据读出来了
+    # temp = imageCast.GetOutput().GetPointData().GetScalars()
+    # numpy_temp = vtk2numpy(temp)
+
+    # mapper
+    volumeMapper = vtk.vtkSmartVolumeMapper()
+    # 体绘制模式选择
+    volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.RayCastRenderMode)
+    # volumeMapper.SetInputConnection(imageCast.GetOutputPort())
+    # 设置输入的体数据
+    volumeMapper.SetInputData(vtkImageData)
+    # volumeMapper.SetInputConnection(imagereader.GetOutputPort())
+    # volumeMapper.SetSampleDistance(0.5)
+
+    # properties，传递函数、光照等，
+    volumeProperty = vtk.vtkVolumeProperty()
+    volumeProperty.SetInterpolationTypeToLinear()
+    volumeProperty.ShadeOn()
+    volumeProperty.SetAmbient(0.5)
+    volumeProperty.SetDiffuse(0.6)
+    volumeProperty.SetSpecular(0.3)
+    volumeProperty.SetSpecularPower(10)
+
+    # 不透明度传递函数
+    volumeOpacityTF = vtk.vtkPiecewiseFunction()
+    volumeOpacityTF.AddPoint(0, 0.00)
+    volumeOpacityTF.AddPoint(600, 0.10)
+    volumeOpacityTF.AddPoint(833, 1.00)
+    volumeOpacityTF.AddPoint(900, 0.40)
+    # volumeOpacityTF.AddPoint(255, 0.20)
+    volumeProperty.SetScalarOpacity(volumeOpacityTF)
+
+    # 梯度不透明度传递函数
+    # volumeGradientTF = vtk.vtkPiecewiseFunction()
+    # volumeGradientTF.AddPoint(10, 0.0)
+    # volumeGradientTF.AddPoint(90, 0.5)
+    # volumeGradientTF.AddPoint(100, 1.0)
+    # volumeProperty.SetGradientOpacity(volumeGradientTF)
+
+    # 颜色传递函数
+    volumeColorTF = vtk.vtkColorTransferFunction()
+    volumeColorTF.AddRGBPoint(0.0, 0.00, 0.00, 0.00)
+    volumeColorTF.AddRGBPoint(202.0, 0.00, 0.00, 0.00)
+    volumeColorTF.AddRGBPoint(640.00, 0.00, 0.52, 0.30)
+    # volumeColorTF.AddRGBPoint(190.0, 1.00, 1.00, 1.00)
+    volumeColorTF.AddRGBPoint(800.0, 0.20, 0.20, 0.20)
+    # volumeColorTF.AddRGBPoint(255.0, 0.20, 0.20, 0.20)
+    volumeProperty.SetColor(volumeColorTF)
+
+    # actor
+    volumeActor = vtk.vtkVolume()
+    volumeActor.SetMapper(volumeMapper)
+    volumeActor.SetProperty(volumeProperty)
+
+    # camera
+    # Camera = vtk.vtkCamera()
+    # Camera.SetPosition(1, 1, 1)
+    # Camera.SetFocalPoint(0, 0, 0)
+
+    # renderer
+    ren = vtk.vtkRenderer()
+    ren.AddVolume(volumeActor)
+    ren.SetBackground(0.7, 0.7, 0.7)
+    # ren.SetActiveCamera(Camera)
+    ren.ResetCamera()
+
+    # window
+    win = vtk.vtkRenderWindow()
+    win.AddRenderer(ren)
+    win.SetSize(3000, 3000)
+    # win.Render()
+    win.SetWindowName("VolumeRendering PipeLine")
+
+    # interactor
+    itr = vtk.vtkRenderWindowInteractor()
+    itr.SetRenderWindow(win)
+
+    win.Render()
+    itr.Initialize()
+    itr.Start()
+
+
+# vtk方法下bins太多出错
+def DrawHistogram(data: DB.VolumeData):
+    ## 从numpy得到vtk的数组数据类型
+    # vtkdataArray = numpy2vtk(num_array=data.dataMatrix.ravel(), array_type=vtk.VTK_FLOAT)
+    # # 定义一种source，vtkImageData
+    # vtkImageData = vtk.vtkImageData()
+    # # 定义vtkImageData的各种属性 source
+    # vtkImageData.SetDimensions(data.count, 1, 1)
+    # vtkImageData.SetSpacing(1, 0, 0)
+    # vtkImageData.GetPointData().SetScalars(vtkdataArray)
+    # # 用于生成直方图的类 filter
+    # accumulate = vtk.vtkImageAccumulate()
+    # accumulate.SetInputData(vtkImageData)
+    # accumulate.SetComponentExtent(0, bins - 1, 0, 0, 0, 0, )  # 设置每个component需要统计的最大最小值
+    # accumulate.SetComponentOrigin(0.0, 0.0, 0.0)  # 设置开始统计的灰度值
+    # accumulate.SetComponentSpacing(256.0 / bins, 0, 0)  # 控制输出"图像"的维度
+    # accumulate.Update()
+    # res = accumulate.GetOutput()  # vtkImageData对象
+    # pd=res.GetPointData()
+    # array=pd.GetScalars()
+    #
+    # # 自己构造vtkDataObject
+    # myObjectData=vtk.vtkDataObject()
+    # intArray=vtk.vtkIntArray()
+    # intArray.SetNumberOfComponents(1)
+    # for i in range(array.GetNumberOfTuples()):
+    #     intArray.InsertNextValue(int(array.GetTuple1(i)))
+    # myObjectData.GetFieldData().AddArray(intArray)
+    #
+    # bar = vtk.vtkBarChartActor()
+    # bar.SetInput(myObjectData)
+    # bar.SetTitle("Histogram")
+    # bar.GetPositionCoordinate().SetValue(0.1, 0.1, 0)
+    # bar.GetPosition2Coordinate().SetValue(0.9, 0.9, 0)
+    # bar.GetProperty().SetColor(0, 0, 0)
+    # bar.GetTitleTextProperty().SetColor(0, 0, 0)
+    # bar.GetLabelTextProperty().SetColor(0, 0, 0)
+    # # bar.GetLegendActor().SetNumberOfEntries(accRes.GetFieldData().GetArray(0).GetNumberOfTuples())
+    # bar.LabelVisibilityOff()
+    # bar.LegendVisibilityOff()
+    #
+    # barRender = vtk.vtkRenderer()
+    # barRender.AddActor(bar)
+    # barRender.SetBackground(0.7, 0.7, 0.7)
+    #
+    # Win = vtk.vtkRenderWindow()
+    # Win.AddRenderer(barRender)
+    # Win.SetSize(2000, 2000)
+    #
+    # Inter = vtk.vtkRenderWindowInteractor()
+    # Inter.SetRenderWindow(Win)
+    #
+    # # Win.Render()
+    # Inter.Start()
+
+    # 直接用numpy和matplotlib
+    isinstance(data.dataMatrix, np.ndarray)
+    intMatrix = data.dataMatrix.astype('int')
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111)
+    plt.hist(intMatrix.flatten(), bins=256, edgecolor='None', facecolor='red', log=True)
+    plt.show()
+
+
+# 画2维的直方图，其中一维是数值，一维是梯度的大小
+def Draw2DHistogram(data: DB.VolumeData, bins):
+    intMatrix = data.dataMatrix.astype('int')  # 转换为整数数组
+    gradientMatrix = np.gradient(intMatrix)  # 计算梯度，结果为三个方向上的梯度
+    intMatrix_flat = intMatrix.flatten()  # 数组展平
+    gradientMatrix_array = np.array(gradientMatrix)  # 转换为np数组
+    gradientMatrix1 = gradientMatrix_array[0, ...]  # 提取第一个方向上的梯度
+    gradientMatrix1_flat = gradientMatrix1.flatten()  # 展平
+    gradientMatrix2 = gradientMatrix_array[1, ...]
+    gradientMatrix2_flat = gradientMatrix2.flatten()
+    gradientMatrix3 = gradientMatrix_array[2, ...]
+    gradientMatrix3_flat = gradientMatrix3.flatten()
+    # 计算合成梯度的大小
+    gradientAll_flat = np.square(gradientMatrix1_flat ** 2 + gradientMatrix2_flat ** 2 + gradientMatrix3_flat ** 2)
+    # #计算梯度
+    # heatmap, yedges, xedges = np.histogram2d(intMatrix_flat, gradientAll_flat)
+    # fig = plt.figure(figsize=(10, 8))
+    # ax = fig.add_subplot(111)
+    # cs = ax.contourf(
+    #                     yedges[0:-1]
+    #                  , xedges[0:-1]
+    #                  , heatmap
+    #                  , locator=ticker.LogLocator()#使用对数
+    #                  )
+    # cbar = fig.colorbar(cs)
+    plt.hist2d(intMatrix_flat
+               , gradientAll_flat
+               , bins=100
+               , norm=colors.LogNorm()
+               )
+    plt.show()
