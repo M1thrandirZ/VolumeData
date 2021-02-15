@@ -231,7 +231,7 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     # imagereader.SetDataOrigin(0.0, 0.0, 0.0)
     # imagereader.Update()
 
-    #转换数据类型
+    # 转换数据类型
     # imageCast = vtk.vtkImageCast()
     # imageCast.SetInputConnection(imagereader.GetOutputPort())
     # imageCast.SetOutputScalarTypeToUnsignedShort()
@@ -316,11 +316,12 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     itr.SetRenderWindow(win)
 
     win.Render()
+    SaveScreenShot(win, "temp")
     itr.Initialize()
     itr.Start()
 
 
-# vtk方法下bins太多出错
+# vtk方法下bins太多出错，用matplotlib方法
 def DrawHistogram(data: DB.VolumeData):
     ## 从numpy得到vtk的数组数据类型
     # vtkdataArray = numpy2vtk(num_array=data.dataMatrix.ravel(), array_type=vtk.VTK_FLOAT)
@@ -380,7 +381,7 @@ def DrawHistogram(data: DB.VolumeData):
     intMatrix = data.dataMatrix.astype('int')
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
-    plt.hist(intMatrix.flatten(), bins=256, edgecolor='None', facecolor='red', log=True)
+    plt.hist(intMatrix.flatten(), bins=256, edgecolor='None', facecolor='blue', log=True)
     plt.show()
 
 
@@ -415,3 +416,17 @@ def Draw2DHistogram(data: DB.VolumeData, bins):
                , norm=colors.LogNorm()
                )
     plt.show()
+
+
+# 保存绘制图像
+def SaveScreenShot(win: vtk.vtkRenderWindow, fileName):
+    windowToImage = vtk.vtkWindowToImageFilter()
+    windowToImage.SetInput(win)
+    windowToImage.Update()
+
+    BMPWriter = vtk.vtkBMPWriter()
+    if isinstance(BMPWriter, vtk.vtkImageWriter):
+        BMPWriter.SetInputConnection(windowToImage.GetOutputPort())
+        BMPWriter.SetFileName("save/"+fileName+".bmp")
+        BMPWriter.SetFilePattern("bmp")
+        BMPWriter.Write()

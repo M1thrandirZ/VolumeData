@@ -3,7 +3,7 @@ import PlotBase as PB
 import numpy as np
 import sys
 
-test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/Tooth_256_256_161_16.raw", np.array([256, 256, 161, 16]))
+test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/BluntFin_256_128_64_8.raw", np.array([256, 128, 64, 8]))
 
 # test.Save_Data()
 # test.Interpolation(2)

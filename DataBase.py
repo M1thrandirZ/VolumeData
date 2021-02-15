@@ -25,7 +25,7 @@ class VolumeData:
             dataArray = f.read()
             f.close()
             # 制作体数据，将数值放在对应的坐标位置
-            if filedimention[3] == 8:  # 一个字节代表一个数值
+            if filedimention[3] == 8:  # 一个字节代表一个数值，如果每个数据是8bit
                 dataMatrix = np.zeros(len(dataArray))
                 for k in range(0, len(dataArray)):
                     dataMatrix[k] = dataArray[k]
@@ -34,11 +34,11 @@ class VolumeData:
                 self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
                 self.dataMatrix = dataMatrix  # 带位置信息的数据结构
                 self.count = len(dataArray)  # 数据点的个数
-            else:
+            else:  # 如果每个数据是16bit
                 count = int(len(dataArray) / 2)
                 dataMatrix = np.zeros(count)
                 for k in range(0, count):
-                    dataMatrix[k]=dataArray[2*k]*16**2+dataArray[2*k+1]
+                    dataMatrix[k] = dataArray[2 * k] * 16 ** 2 + dataArray[2 * k + 1]
 
                 self.dataArray_int = dataMatrix  # 数据一维形式，int类型
                 dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
@@ -104,3 +104,7 @@ class VolumeData:
     def MarshingCubes(self, t):
         vertices, triangles = mc.marching_cubes(self.dataMatrix, t)
         return vertices, triangles
+
+    # 生成一个和一组符合高斯分布的数
+    def GenGauss(self, loc, scale, size):
+        return np.random.normal(loc, scale, size)
