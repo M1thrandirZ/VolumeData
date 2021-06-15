@@ -213,7 +213,9 @@ def DrawVTKMarshingCubes(data: DB.VolumeData, t):
 # vtk方法体绘制
 def DrawVTKVolumeRendering(data: DB.VolumeData):
     # 读数据source
-    vtkdataArray = numpy2vtk(num_array=data.dataMatrix.ravel(), array_type=vtk.VTK_FLOAT)
+    lineData = data.dataMatrix.reshape(np.size(data.dataMatrix), order='F')
+    # vtkdataArray = numpy2vtk(num_array=data.dataMatrix.flatten(), array_type=vtk.VTK_FLOAT)
+    vtkdataArray = numpy2vtk(num_array=lineData, array_type=vtk.VTK_FLOAT)
     # 定义一种source，vtkImageData
     vtkImageData = vtk.vtkImageData()
     # 定义vtkImageData的各种属性
@@ -243,31 +245,34 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     # numpy_temp = vtk2numpy(temp)
 
     # mapper
-    volumeMapper = vtk.vtkSmartVolumeMapper()
+    # 不同的mapper对应不同的体绘制算法
+    # volumeMapper = vtk.vtkSmartVolumeMapper()
+    volumeMapper = vtk.vtkFixedPointVolumeRayCastMapper()
     # 体绘制模式选择
-    volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.RayCastRenderMode)
-    # volumeMapper.SetInputConnection(imageCast.GetOutputPort())
+    # volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.RayCastRenderMode)
+    volumeMapper.SetSampleDistance(volumeMapper.GetSampleDistance()*10)  # 光线采样步长,-1会根据数据点间隔自动设置
+    volumeMapper.AutoAdjustSampleDistancesOff()  # 关闭自适应采样步长
+    # volumeMapper.InteractiveAdjustSampleDistancesOff()  # 关闭在交互的时候降低采样率
+
     # 设置输入的体数据
     volumeMapper.SetInputData(vtkImageData)
-    # volumeMapper.SetInputConnection(imagereader.GetOutputPort())
-    # volumeMapper.SetSampleDistance(0.5)
 
     # properties，传递函数、光照等，
     volumeProperty = vtk.vtkVolumeProperty()
-    volumeProperty.SetInterpolationTypeToLinear()
-    volumeProperty.ShadeOn()
-    volumeProperty.SetAmbient(0.5)
-    volumeProperty.SetDiffuse(0.6)
-    volumeProperty.SetSpecular(0.3)
-    volumeProperty.SetSpecularPower(10)
+    volumeProperty.SetInterpolationTypeToLinear()#线性插值
+    # volumeProperty.SetInterpolationType(vtk.VTK_CUBIC_INTERPOLATION)  # 三次插值
+    # volumeProperty.ShadeOn()
+    # volumeProperty.SetAmbient(0.5)
+    # volumeProperty.SetDiffuse(0.6)
+    # volumeProperty.SetSpecular(0.3)
+    # volumeProperty.SetSpecularPower(10)
 
     # 不透明度传递函数
     volumeOpacityTF = vtk.vtkPiecewiseFunction()
     volumeOpacityTF.AddPoint(0, 0.00)
-    volumeOpacityTF.AddPoint(600, 0.10)
-    volumeOpacityTF.AddPoint(833, 1.00)
-    volumeOpacityTF.AddPoint(900, 0.40)
-    # volumeOpacityTF.AddPoint(255, 0.20)
+    volumeOpacityTF.AddPoint(255, 0.10)
+    # volumeOpacityTF.AddPoint(833, 1.00)
+    # volumeOpacityTF.AddPoint(900, 0.80)
     volumeProperty.SetScalarOpacity(volumeOpacityTF)
 
     # 梯度不透明度传递函数
@@ -280,10 +285,10 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     # 颜色传递函数
     volumeColorTF = vtk.vtkColorTransferFunction()
     volumeColorTF.AddRGBPoint(0.0, 0.00, 0.00, 0.00)
-    volumeColorTF.AddRGBPoint(202.0, 0.00, 0.00, 0.00)
-    volumeColorTF.AddRGBPoint(640.00, 0.00, 0.52, 0.30)
+    volumeColorTF.AddRGBPoint(256.0, 0.00, 0.00, 0.00)
+    # volumeColorTF.AddRGBPoint(640.00, 0.00, 0.52, 0.30)
     # volumeColorTF.AddRGBPoint(190.0, 1.00, 1.00, 1.00)
-    volumeColorTF.AddRGBPoint(800.0, 0.20, 0.20, 0.20)
+    # volumeColorTF.AddRGBPoint(800.0, 0.20, 0.20, 0.20)
     # volumeColorTF.AddRGBPoint(255.0, 0.20, 0.20, 0.20)
     volumeProperty.SetColor(volumeColorTF)
 
@@ -294,29 +299,63 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
 
     # camera
     # Camera = vtk.vtkCamera()
-    # Camera.SetPosition(1, 1, 1)
+    # Camera.SetPosition(0, 5, 5)
     # Camera.SetFocalPoint(0, 0, 0)
 
     # renderer
     ren = vtk.vtkRenderer()
     ren.AddVolume(volumeActor)
-    ren.SetBackground(0.7, 0.7, 0.7)
+    ren.SetBackground(1.0, 1.0, 1.0)
     # ren.SetActiveCamera(Camera)
     ren.ResetCamera()
+    # ren.SetLayer(1)
+
+    # 画一个球体
+    # sphereSource = vtk.vtkSphereSource()
+    # sphereSource.SetRadius(1)
+    # sphereSource.SetCenter(0.0, 0.0, 0.0)
+    #
+    # sphereMapper = vtk.vtkDataSetMapper()
+    # sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
+    #
+    # sphereActor = vtk.vtkActor()
+    # sphereActor.SetMapper(sphereMapper)
+    #
+    # sphereRenderer = vtk.vtkRenderer()
+    # sphereRenderer.AddActor(sphereActor)
+    # sphereRenderer.SetBackground(0.7, 0.7, 0.7)
+    # sphereRenderer.SetLayer(0)
 
     # window
     win = vtk.vtkRenderWindow()
+    # win.SetNumberOfLayers(2)
     win.AddRenderer(ren)
+    # win.AddRenderer(sphereRenderer)
     win.SetSize(3000, 3000)
-    # win.Render()
     win.SetWindowName("VolumeRendering PipeLine")
 
     # interactor
     itr = vtk.vtkRenderWindowInteractor()
     itr.SetRenderWindow(win)
 
+    camera = ren.GetActiveCamera()
+
+    camera.GetPosition()
+    camera.GetFocalPoint()
+    # 靠近
+    camera.SetPosition(camera.GetPosition()[0],
+                       camera.GetPosition()[1],
+                       camera.GetPosition()[2] - 60)
+
+    # 改变摄像机的角度
+    # n = 20  # 生成的角度数量
+    # pern = 360 / n
+    # for i in range(0, n):
+    #     ren.GetActiveCamera().Azimuth(pern)  # 每次转动pern角度
+    #     win.Render()
+    #     SaveScreenShot(win, "change_"+str(i))
+
     win.Render()
-    SaveScreenShot(win, "temp")
     itr.Initialize()
     itr.Start()
 
@@ -425,8 +464,7 @@ def SaveScreenShot(win: vtk.vtkRenderWindow, fileName):
     windowToImage.Update()
 
     BMPWriter = vtk.vtkBMPWriter()
-    if isinstance(BMPWriter, vtk.vtkImageWriter):
-        BMPWriter.SetInputConnection(windowToImage.GetOutputPort())
-        BMPWriter.SetFileName("save/"+fileName+".bmp")
-        BMPWriter.SetFilePattern("bmp")
-        BMPWriter.Write()
+    BMPWriter.SetInputConnection(windowToImage.GetOutputPort())
+    BMPWriter.SetFileName("save/" + fileName + ".bmp")
+    BMPWriter.SetFilePattern("bmp")
+    BMPWriter.Write()

@@ -3,7 +3,7 @@ import tkinter as tk
 import tkinter.filedialog as fd
 import numpy as np
 from scipy.interpolate import griddata
-import mcubes as mc
+# import mcubes as mc
 import struct
 import vtk
 import vtkmodules.all as vtk
@@ -30,7 +30,7 @@ class VolumeData:
                 for k in range(0, len(dataArray)):
                     dataMatrix[k] = dataArray[k]
                 self.dataArray_int = dataMatrix  # 数据一维形式，int类型
-                dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]))
+                dataMatrix = dataMatrix.reshape((filedimention[0], filedimention[1], filedimention[2]), order='F')
                 self.dataArray_bytes = dataArray  # 数据一维形式，bytes类型
                 self.dataMatrix = dataMatrix  # 带位置信息的数据结构
                 self.count = len(dataArray)  # 数据点的个数
@@ -101,10 +101,52 @@ class VolumeData:
         self.dataDimension = np.array([newX, newY, newZ, self.dataDimension[3]])  # 更新数据维度
 
     # 提取等值面，t是等值面的值，返回定点和三角形，精度不太高
-    def MarshingCubes(self, t):
-        vertices, triangles = mc.marching_cubes(self.dataMatrix, t)
-        return vertices, triangles
+    # def MarshingCubes(self, t):
+    #     vertices, triangles = mc.marching_cubes(self.dataMatrix, t)
+    #     return vertices, triangles
 
-    # 生成一个和一组符合高斯分布的数
+    # 生成一个或一组符合高斯分布的数
     def GenGauss(self, loc, scale, size):
         return np.random.normal(loc, scale, size)
+
+    # 将体数据的每一个点都替换成一个高斯分布的随机值
+    def GaussDataMatrix(self, scale):
+        for i in range(0, self.count):
+            if self.dataArray_int[i] != 0:
+                self.dataArray_int[i] = self.GenGauss(self.dataArray_int[i], scale, 1)
+        self.dataMatrix = self.dataArray_int.reshape(
+            (self.dataDimension[0], self.dataDimension[1], self.dataDimension[2]))
+
+    # 对矩阵中某一个位置进行高斯化
+    def GaussData(self, location: np.ndarray, scale):
+        if self.dataMatrix[location[0], location[1], location[2]] != 0:
+            print("[" + str(location[0]) +
+                  "," + str(location[1]) +
+                  "," + str(location[2]) +
+                  "]位置的数据值为" +
+                  str(self.dataMatrix[location[0], location[1], location[2]]))
+            self.dataMatrix[location[0], location[1], location[2]] = self.GenGauss(
+                self.dataMatrix[location[0], location[1], location[2]], scale, 1)
+            print("高斯化之后的值为" + str(self.dataMatrix[location[0], location[1], location[2]]))
+        else:
+            print("这个位置的数据为0")
+
+    # 修改体数据里某一位置的数值，只对非零数据进行修改
+    def ChangeData(self, location: np.ndarray, scale):
+        if self.dataMatrix[location[0], location[1], location[2]] != 0:
+            print("[" + str(location[0]) +
+                  "," + str(location[1]) +
+                  "," + str(location[2]) +
+                  "]位置的数据值为" +
+                  str(self.dataMatrix[location[0], location[1], location[2]]))
+            self.dataMatrix[location[0], location[1], location[2]] = scale
+            print("修改值为" + str(scale))
+        else:
+            print("这个位置的数据为0，不修改")
+
+    # 修改某一区域内所有数据数值，start为区域起点，regionRange为区域向三个维度扩展的范围，scale为要修改的数值
+    def ChangeRegionData(self, start: np.ndarray, regionRange: np.ndarray, scale):
+        for i in range(0, regionRange[0]):
+            for j in range(0, regionRange[1]):
+                for k in range(0, regionRange[2]):
+                    self.ChangeData(np.array([start[0] + i, start[1] + j, start[2] + k]), scale)
