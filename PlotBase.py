@@ -250,8 +250,9 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     volumeMapper = vtk.vtkFixedPointVolumeRayCastMapper()
     # 体绘制模式选择
     # volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.RayCastRenderMode)
-    volumeMapper.SetSampleDistance(volumeMapper.GetSampleDistance()*10)  # 光线采样步长,-1会根据数据点间隔自动设置
     volumeMapper.AutoAdjustSampleDistancesOff()  # 关闭自适应采样步长
+    volumeMapper.SetSampleDistance(volumeMapper.GetSampleDistance())  # 光线采样步长,-1会根据数据点间隔自动设置，默认是1
+
     # volumeMapper.InteractiveAdjustSampleDistancesOff()  # 关闭在交互的时候降低采样率
 
     # 设置输入的体数据
@@ -259,7 +260,7 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
 
     # properties，传递函数、光照等，
     volumeProperty = vtk.vtkVolumeProperty()
-    volumeProperty.SetInterpolationTypeToLinear()#线性插值
+    volumeProperty.SetInterpolationTypeToLinear()  # 三线性插值
     # volumeProperty.SetInterpolationType(vtk.VTK_CUBIC_INTERPOLATION)  # 三次插值
     # volumeProperty.ShadeOn()
     # volumeProperty.SetAmbient(0.5)
@@ -269,10 +270,11 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
 
     # 不透明度传递函数
     volumeOpacityTF = vtk.vtkPiecewiseFunction()
-    volumeOpacityTF.AddPoint(0, 0.00)
-    volumeOpacityTF.AddPoint(255, 0.10)
-    # volumeOpacityTF.AddPoint(833, 1.00)
-    # volumeOpacityTF.AddPoint(900, 0.80)
+    volumeOpacityTF.AddPoint(600, 0.00)
+    # volumeOpacityTF.AddPoint(255, 0.10)
+    # volumeOpacityTF.AddPoint(833, 0.20)
+    volumeOpacityTF.AddPoint(800, 0.3)
+    volumeOpacityTF.AddPoint(1000, 0)
     volumeProperty.SetScalarOpacity(volumeOpacityTF)
 
     # 梯度不透明度传递函数
@@ -338,14 +340,14 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     itr = vtk.vtkRenderWindowInteractor()
     itr.SetRenderWindow(win)
 
-    camera = ren.GetActiveCamera()
-
-    camera.GetPosition()
-    camera.GetFocalPoint()
-    # 靠近
-    camera.SetPosition(camera.GetPosition()[0],
-                       camera.GetPosition()[1],
-                       camera.GetPosition()[2] - 60)
+    # camera = ren.GetActiveCamera()
+    #
+    # camera.GetPosition()
+    # camera.GetFocalPoint()
+    # # 靠近
+    # camera.SetPosition(camera.GetPosition()[0],
+    #                    camera.GetPosition()[1],
+    #                    camera.GetPosition()[2] - 60)
 
     # 改变摄像机的角度
     # n = 20  # 生成的角度数量
@@ -420,7 +422,10 @@ def DrawHistogram(data: DB.VolumeData):
     intMatrix = data.dataMatrix.astype('int')
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111)
-    plt.hist(intMatrix.flatten(), bins=256, edgecolor='None', facecolor='blue', log=True)
+    if data.dataDimension[3] == 8:  # 如果是8bit数据
+        plt.hist(intMatrix.flatten(), bins=200, edgecolor='None', facecolor='blue', log=True)
+    else:  # 如果是16bit数据
+        plt.hist(intMatrix.flatten(), bins=500, edgecolor='None', facecolor='blue', log=True)
     plt.show()
 
 
@@ -468,3 +473,185 @@ def SaveScreenShot(win: vtk.vtkRenderWindow, fileName):
     BMPWriter.SetFileName("save/" + fileName + ".bmp")
     BMPWriter.SetFilePattern("bmp")
     BMPWriter.Write()
+
+
+# 绘制散点的Delaunay剖分
+def DrawDelaunay3D(data: DB.VolumeData, n: int):
+    """
+    从规则网格数据data中随机抽取n个点组成非结构化网格数据，然后进行Delaunay三角剖分，绘制出四面体网格
+    :param data:体数据
+    :param n:抽取的散乱点个数
+    :return:
+    """
+    # unstructuredDataSet = data.RandomUnstructuredDataSet(n)
+    # unstructuredDataSet = unstructuredDataSet[:, 0:3]
+    #
+    # points = vtk.vtkPoints()
+    # points.SetData(numpy2vtk(num_array=unstructuredDataSet, deep=True))
+    #
+    # polyData = vtk.vtkPolyData()
+    # polyData.SetPoints(points)
+
+    # 生成一个UnstructuredGrid
+    # uGrid = data.GenUnstructuredGrid(n)
+
+    uGrid=data.ExtractVoxelsToUnstructuredGrid(2)
+    delaunay3d = vtk.vtkDelaunay3D()
+    delaunay3d.SetInputData(uGrid)
+    delaunay3d.Update()
+
+    # uGrid = vtk.vtkUnstructuredGrid()
+    # uGrid = delaunay3d.GetOutput()
+
+    dataSetMapper = vtk.vtkDataSetMapper()
+    # dataSetMapper.SetInputConnection(delaunay3d.GetOutputPort())
+    dataSetMapper.SetInputData(delaunay3d.GetOutput())
+    dataSetMapper.Update()
+
+    actor = vtk.vtkActor()
+    actor.SetMapper(dataSetMapper)
+    actor.GetProperty().SetColor(0.5, 0.5, 0.5)
+    actor.GetProperty().EdgeVisibilityOn()
+
+    # 文本显示actor
+    textActor = vtk.vtkTextActor()
+    textActor.SetInput("points count:" + str(uGrid.GetPoints().GetNumberOfPoints()))
+    textActor.SetDisplayPosition(20, 30)
+    textProp = textActor.GetTextProperty()
+    textProp.BoldOn()
+    textProp.SetFontSize(50)
+    textProp.ShadowOn()
+    textProp.SetColor(0, 0, 0)
+
+    renderer = vtk.vtkRenderer()
+    renderer.AddActor(actor)
+    renderer.AddActor(textActor)
+    renderer.SetBackground(0.9, 0.9, 0.9)
+
+    renderWindow = vtk.vtkRenderWindow()
+    renderWindow.AddRenderer(renderer)
+    renderWindow.SetSize(3000, 3000)
+
+    itr = vtk.vtkRenderWindowInteractor()
+    itr.SetRenderWindow(renderWindow)
+
+    renderWindow.Render()
+    itr.Initialize()
+    itr.Start()
+
+
+# vtk方法体绘制
+def DrawVTKUnstructuredVolumeRendering(volume: vtk.vtkUnstructuredGrid):
+
+    triFilter=vtk.vtkDataSetTriangleFilter()
+    triFilter.SetInputData(volume)
+    triFilter.Update()
+
+    volumeMapper = vtk.vtkUnstructuredGridVolumeRayCastMapper()
+    volumeMapper.SetInputData(triFilter.GetOutput())
+
+    volumeMapper.SetRayCastFunction(vtk.vtkUnstructuredGridBunykRayCastFunction())#对数据有要求
+    volumeMapper.SetRayIntegrator(None)
+
+    # properties，传递函数、光照等，
+    volumeProperty = vtk.vtkVolumeProperty()
+    volumeProperty.SetInterpolationTypeToLinear()  # 三线性插值
+    # volumeProperty.SetInterpolationType(vtk.VTK_CUBIC_INTERPOLATION)  # 三次插值
+    # volumeProperty.ShadeOn()
+    # volumeProperty.SetAmbient(0.5)
+    # volumeProperty.SetDiffuse(0.6)
+    # volumeProperty.SetSpecular(0.3)
+    # volumeProperty.SetSpecularPower(10)
+
+    # 不透明度传递函数
+    volumeOpacityTF = vtk.vtkPiecewiseFunction()
+    volumeOpacityTF.AddPoint(600, 0.00)
+    # volumeOpacityTF.AddPoint(255, 0.10)
+    # volumeOpacityTF.AddPoint(833, 0.20)
+    volumeOpacityTF.AddPoint(800, 0.3)
+    volumeOpacityTF.AddPoint(1000, 0)
+    volumeProperty.SetScalarOpacity(volumeOpacityTF)
+
+    # 梯度不透明度传递函数
+    # volumeGradientTF = vtk.vtkPiecewiseFunction()
+    # volumeGradientTF.AddPoint(10, 0.0)
+    # volumeGradientTF.AddPoint(90, 0.5)
+    # volumeGradientTF.AddPoint(100, 1.0)
+    # volumeProperty.SetGradientOpacity(volumeGradientTF)
+
+    # 颜色传递函数
+    volumeColorTF = vtk.vtkColorTransferFunction()
+    volumeColorTF.AddRGBPoint(0.0, 0.00, 0.00, 0.00)
+    volumeColorTF.AddRGBPoint(256.0, 0.00, 0.00, 0.00)
+    # volumeColorTF.AddRGBPoint(640.00, 0.00, 0.52, 0.30)
+    # volumeColorTF.AddRGBPoint(190.0, 1.00, 1.00, 1.00)
+    # volumeColorTF.AddRGBPoint(800.0, 0.20, 0.20, 0.20)
+    # volumeColorTF.AddRGBPoint(255.0, 0.20, 0.20, 0.20)
+    volumeProperty.SetColor(volumeColorTF)
+
+    # actor
+    volumeActor = vtk.vtkVolume()
+    volumeActor.SetMapper(volumeMapper)
+    volumeActor.SetProperty(volumeProperty)
+
+    # camera
+    # Camera = vtk.vtkCamera()
+    # Camera.SetPosition(0, 5, 5)
+    # Camera.SetFocalPoint(0, 0, 0)
+
+    # renderer
+    ren = vtk.vtkRenderer()
+    ren.AddVolume(volumeActor)
+    ren.SetBackground(1.0, 1.0, 1.0)
+    # ren.SetActiveCamera(Camera)
+    ren.ResetCamera()
+    # ren.SetLayer(1)
+
+    # 画一个球体
+    # sphereSource = vtk.vtkSphereSource()
+    # sphereSource.SetRadius(1)
+    # sphereSource.SetCenter(0.0, 0.0, 0.0)
+    #
+    # sphereMapper = vtk.vtkDataSetMapper()
+    # sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
+    #
+    # sphereActor = vtk.vtkActor()
+    # sphereActor.SetMapper(sphereMapper)
+    #
+    # sphereRenderer = vtk.vtkRenderer()
+    # sphereRenderer.AddActor(sphereActor)
+    # sphereRenderer.SetBackground(0.7, 0.7, 0.7)
+    # sphereRenderer.SetLayer(0)
+
+    # window
+    win = vtk.vtkRenderWindow()
+    # win.SetNumberOfLayers(2)
+    win.AddRenderer(ren)
+    # win.AddRenderer(sphereRenderer)
+    win.SetSize(3000, 3000)
+    win.SetWindowName("VolumeRendering PipeLine")
+
+    # interactor
+    itr = vtk.vtkRenderWindowInteractor()
+    itr.SetRenderWindow(win)
+
+    # camera = ren.GetActiveCamera()
+    #
+    # camera.GetPosition()
+    # camera.GetFocalPoint()
+    # # 靠近
+    # camera.SetPosition(camera.GetPosition()[0],
+    #                    camera.GetPosition()[1],
+    #                    camera.GetPosition()[2] - 60)
+
+    # 改变摄像机的角度
+    # n = 20  # 生成的角度数量
+    # pern = 360 / n
+    # for i in range(0, n):
+    #     ren.GetActiveCamera().Azimuth(pern)  # 每次转动pern角度
+    #     win.Render()
+    #     SaveScreenShot(win, "change_"+str(i))
+
+    win.Render()
+    itr.Initialize()
+    itr.Start()

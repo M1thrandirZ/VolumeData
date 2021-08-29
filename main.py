@@ -6,7 +6,7 @@ import numpy as np
 import sys
 
 # 体绘制部分
-test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/BluntFin_256_128_64_8.raw", np.array([256, 128, 64, 8]))
+test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/Tooth_256_256_161_16.raw", np.array([256, 256, 161, 16]))
 
 # 高斯化
 # test.GaussDataMatrix(5)
@@ -24,7 +24,14 @@ test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/BluntFin_256_128
 # PB.DrawVTKMarshingCubes(test,100)
 # PB.DrawHistogram(test)
 # PB.Draw2DHistogram(test,100)
-PB.DrawVTKVolumeRendering(test) # 体绘制
+
+# test.GenUnstructuredGrid(1000)
+PB.DrawDelaunay3D(test,2000)
+
+# test.ExtractVoxelsToUnstructuredGrid(100)
+
+# PB.DrawVTKVolumeRendering(test) # 体绘制
+# PB.DrawVTKUnstructuredVolumeRendering(test.ExtractVoxelsToUnstructuredGrid(100))
 # sys.exit()
 
 #图片处理部分
