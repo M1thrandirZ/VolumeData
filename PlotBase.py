@@ -250,8 +250,8 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     volumeMapper = vtk.vtkFixedPointVolumeRayCastMapper()
     # 体绘制模式选择
     # volumeMapper.SetRequestedRenderMode(vtk.vtkSmartVolumeMapper.RayCastRenderMode)
-    volumeMapper.AutoAdjustSampleDistancesOff()  # 关闭自适应采样步长
-    volumeMapper.SetSampleDistance(volumeMapper.GetSampleDistance())  # 光线采样步长,-1会根据数据点间隔自动设置，默认是1
+    # volumeMapper.AutoAdjustSampleDistancesOff()  # 关闭自适应采样步长
+    # volumeMapper.SetSampleDistance(-1)  # 光线采样步长,-1会根据数据点间隔自动设置，默认是1
 
     # volumeMapper.InteractiveAdjustSampleDistancesOff()  # 关闭在交互的时候降低采样率
 
@@ -262,6 +262,7 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
     volumeProperty = vtk.vtkVolumeProperty()
     volumeProperty.SetInterpolationTypeToLinear()  # 三线性插值
     # volumeProperty.SetInterpolationType(vtk.VTK_CUBIC_INTERPOLATION)  # 三次插值
+    # 光照设置
     # volumeProperty.ShadeOn()
     # volumeProperty.SetAmbient(0.5)
     # volumeProperty.SetDiffuse(0.6)
@@ -270,11 +271,13 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
 
     # 不透明度传递函数
     volumeOpacityTF = vtk.vtkPiecewiseFunction()
-    volumeOpacityTF.AddPoint(600, 0.00)
-    # volumeOpacityTF.AddPoint(255, 0.10)
-    # volumeOpacityTF.AddPoint(833, 0.20)
-    volumeOpacityTF.AddPoint(800, 0.3)
-    volumeOpacityTF.AddPoint(1000, 0)
+    volumeOpacityTF.ClampingOff()
+    volumeOpacityTF.UseLogScaleOn()
+    volumeOpacityTF.AddPoint(0, 0.00)
+    volumeOpacityTF.AddPoint(25, 0.00)
+    volumeOpacityTF.AddPoint(43, 0.01)
+    volumeOpacityTF.AddPoint(55, 0.1)
+    volumeOpacityTF.AddPoint(255, 0.8)
     volumeProperty.SetScalarOpacity(volumeOpacityTF)
 
     # 梯度不透明度传递函数
@@ -286,8 +289,11 @@ def DrawVTKVolumeRendering(data: DB.VolumeData):
 
     # 颜色传递函数
     volumeColorTF = vtk.vtkColorTransferFunction()
-    volumeColorTF.AddRGBPoint(0.0, 0.00, 0.00, 0.00)
-    volumeColorTF.AddRGBPoint(256.0, 0.00, 0.00, 0.00)
+    volumeColorTF.ClampingOff()
+    volumeColorTF.AddRGBPoint(25, 0, 0.7, 0)
+    volumeColorTF.AddRGBPoint(55, 0, 0, 0.7)
+    volumeColorTF.AddRGBPoint(150, 0.7, 0, 0)
+    volumeColorTF.AddRGBPoint(255, 1, 0, 0)
     # volumeColorTF.AddRGBPoint(640.00, 0.00, 0.52, 0.30)
     # volumeColorTF.AddRGBPoint(190.0, 1.00, 1.00, 1.00)
     # volumeColorTF.AddRGBPoint(800.0, 0.20, 0.20, 0.20)
@@ -493,9 +499,9 @@ def DrawDelaunay3D(data: DB.VolumeData, n: int):
     # polyData.SetPoints(points)
 
     # 生成一个UnstructuredGrid
-    # uGrid = data.GenUnstructuredGrid(n)
+    uGrid = data.GenTetraUnstructuredGrid(n)
 
-    uGrid=data.ExtractVoxelsToUnstructuredGrid(2)
+    # uGrid = data.ExtractVoxelsToUnstructuredGrid(n)  # 抽取体素
     delaunay3d = vtk.vtkDelaunay3D()
     delaunay3d.SetInputData(uGrid)
     delaunay3d.Update()
@@ -543,15 +549,26 @@ def DrawDelaunay3D(data: DB.VolumeData, n: int):
 # vtk方法体绘制
 def DrawVTKUnstructuredVolumeRendering(volume: vtk.vtkUnstructuredGrid):
 
-    triFilter=vtk.vtkDataSetTriangleFilter()
-    triFilter.SetInputData(volume)
-    triFilter.Update()
+    # triFilter = vtk.vtkDataSetTriangleFilter()
+    # triFilter.SetInputData(volume)
+    # triFilter.Update()
 
+    delaunay3d = vtk.vtkDelaunay3D()
+    delaunay3d.SetInputData(volume)
+    delaunay3d.Update()
+
+    # 把非结构化网格体数据保存为.vtk文件，可以用paraview显示
+    writer = vtk.vtkUnstructuredGridWriter()
+    writer.SetInputData(delaunay3d.GetOutput())
+    writer.SetFileName("MyUnstructuredGrid.vtk")
+    writer.Write()
+
+    # 显示
     volumeMapper = vtk.vtkUnstructuredGridVolumeRayCastMapper()
-    volumeMapper.SetInputData(triFilter.GetOutput())
+    volumeMapper.SetInputData(delaunay3d.GetOutput())
 
-    volumeMapper.SetRayCastFunction(vtk.vtkUnstructuredGridBunykRayCastFunction())#对数据有要求
-    volumeMapper.SetRayIntegrator(None)
+    # volumeMapper.SetRayCastFunction(vtk.vtkUnstructuredGridBunykRayCastFunction())  # 对数据有要求
+    # volumeMapper.SetRayIntegrator(None)
 
     # properties，传递函数、光照等，
     volumeProperty = vtk.vtkVolumeProperty()
@@ -564,6 +581,7 @@ def DrawVTKUnstructuredVolumeRendering(volume: vtk.vtkUnstructuredGrid):
     # volumeProperty.SetSpecularPower(10)
 
     # 不透明度传递函数
+    # todo:传递函数不合适
     volumeOpacityTF = vtk.vtkPiecewiseFunction()
     volumeOpacityTF.AddPoint(600, 0.00)
     # volumeOpacityTF.AddPoint(255, 0.10)

@@ -164,70 +164,77 @@ class VolumeData:
         YDimension = self.dataDimension[1]
         ZDimension = self.dataDimension[2]
 
-        # 获得随机生成的位置下标
-        Xindex = np.random.randint(0, XDimension, n)
-        Yindex = np.random.randint(0, YDimension, n)
-        Zindex = np.random.randint(0, ZDimension, n)
+        count = 0  # 满足值大于threshold的点个数
+        UnstructuredDataSet = np.zeros((n, 4))
 
-        UnstructuredDataSet = np.zeros((4, n)).astype(np.int)  # 前三行储存x、y、z位置，第四行储存值
+        while count < n:
+            # 获得随机生成的位置下标
+            Xindex = np.random.randint(0, XDimension, 1)
+            Yindex = np.random.randint(0, YDimension, 1)
+            Zindex = np.random.randint(0, ZDimension, 1)
 
-        UnstructuredDataSet[0, :] = Xindex[:]
-        UnstructuredDataSet[1, :] = Yindex[:]
-        UnstructuredDataSet[2, :] = Zindex[:]
-
-        zeroIndice = np.zeros(1).astype(np.int)
-        # 在原matrix中取值，但要记录一下哪些位置的值小于threshold
-        for i in range(0, n):
             value = self.dataMatrix[
-                UnstructuredDataSet[0, i], UnstructuredDataSet[1, i], UnstructuredDataSet[2, i]]
-            UnstructuredDataSet[3, i] = value
+                Xindex, Yindex, Zindex]
 
-            if value <= threshold:
-                zeroIndice = np.append(zeroIndice, i)
+            if value == 0:  # 如果这个点的值是0，就舍掉
+                continue
+            else:
+                UnstructuredDataSet[count, 0] = Xindex
+                UnstructuredDataSet[count, 1] = Yindex
+                UnstructuredDataSet[count, 2] = Zindex
+                UnstructuredDataSet[count, 3] = value
+                count = count + 1
 
-        zeroIndice = np.delete(zeroIndice, 0)  # 删除第一个初始值
+        return UnstructuredDataSet
 
-        # 剔除值为0的部分
-        UnstructuredDataSet = np.delete(UnstructuredDataSet, zeroIndice, 1)
-
-        return UnstructuredDataSet.T
-
-    def GenUnstructuredGrid(self, n: int, threshold=0):
+    def GenTetraUnstructuredGrid(self, n: int, threshold=0):
         """
-        将RandomUnstructuredDataSet方法抽取的点组成UnstructuredGrid数据
-        :param n:抽取个数，剔除小于threshold的点，总个数比n小
+        构造四面体网格的非结构化体数据
+        :param n:抽取个数，n需要被4整除
         :param threshold:小于threshold的点将被剔除
         :return:vtkUnstructuredGrid
         """
-        if threshold == 0:
-            randomData = self.RandomUnstructuredDataSet(n)  # 先随机抽取n个非零值的数据点
+
+        if n % 4 != 0:  # 如果n不是4的倍数
+            print("参数n需要被4整除")
+            return None
         else:
-            randomData = self.RandomUnstructuredDataSet(n, threshold)  # 先随机抽取n个非零值的数据点
-        pointCount = np.size(randomData, 0)
+            points = vtk.vtkPoints()  # 点的集合
+            tetraArray = vtk.vtkCellArray()  # 四面体cell的集合
+            tetraType = vtk.vtkTetra().GetCellType()
 
-        points = vtk.vtkPoints()
-        for j in range(0, pointCount):
-            points.InsertNextPoint(randomData[j, 0], randomData[j, 1], randomData[j, 2])
+            if threshold == 0:
+                randomData = self.RandomUnstructuredDataSet(n)  # 先随机抽取n个非零值的数据点
+            else:
+                randomData = self.RandomUnstructuredDataSet(n, threshold)  # 先随机抽取n个非零值的数据点
+            pointCount = np.size(randomData, 0)
 
-        # todo:重新写一个函数，每次抽取一个点的时候其实是抽取了8个点形成的一个voxel
+            for j in range(0, pointCount):  # 获取所有的点的位置坐标
+                points.InsertNextPoint(randomData[j, 0], randomData[j, 1], randomData[j, 2])
 
-        # 只是纯数据点，没有拓扑结构
-        # voxel=vtk.vtkVoxel()
-        # # numberOfIds=voxel.GetNumberOfIds()
-        # for i in range(0,pointCount):
-        #     voxel.GetPointIds().SetId(i,i)
+            for k in range(0, int(pointCount / 4)):  # 定义四面体各个顶点的id，形成拓扑关系
+                tetra = vtk.vtkTetra()  # 定义一个四面体
 
-        scalarArray = numpy2vtk(num_array=randomData[:, 3], array_type=vtk.VTK_FLOAT)
+                for q in range(4):
+                    tetra.GetPointIds().SetId(q, 4 * k + q)
 
-        uGrid = vtk.vtkUnstructuredGrid()
-        uGrid.SetPoints(points)
-        uGrid.GetPointData().SetScalars(scalarArray)
-        # uGrid.InsertNextCell(voxel.GetCellType(), voxel.GetPointIds())
+                tetraArray.InsertNextCell(tetra)
 
-        return uGrid
+            scalarArray = numpy2vtk(num_array=randomData[:, 3], array_type=vtk.VTK_FLOAT)
+
+            uGrid = vtk.vtkUnstructuredGrid()
+            uGrid.SetPoints(points)
+            uGrid.GetPointData().SetScalars(scalarArray)
+            uGrid.SetCells(tetraType, tetraArray)
+
+            return uGrid
 
     def ExtractVoxelsToUnstructuredGrid(self, n: int):
-
+        """
+        随机抽取n个voxel，一个voxel是由8个数据点组成的正方体。voxel太分散，不太像非结构化体数据
+        :param n:会剔除一部分点
+        :return:vtkUnstructuredGrid
+        """
         # 获取三个方向上的维度
         XDimension = self.dataDimension[0]
         YDimension = self.dataDimension[1]
@@ -237,15 +244,29 @@ class VolumeData:
         points = vtk.vtkPoints()  # 点的集合
         scalars = np.empty(0, dtype=float)
 
+        # 按照正态分布随机取点
+        # Xindexes = np.floor(np.random.normal(XDimension / 2, XDimension / 4, n))
+        # Yindexes = np.floor(np.random.normal(XDimension / 2, XDimension / 4, n))
+        # Zindexes = np.floor(np.random.normal(XDimension / 2, XDimension / 4, n))
+
         for v in range(0, n):
 
             pointValues = np.zeros(8)
             voxel = vtk.vtkVoxel()  # 一个体素
 
             # 获得随机生成的位置下标，然后每个维度+1就可以得到一个voxel
-            Xindex = np.random.randint(0, XDimension - 1)
-            Yindex = np.random.randint(0, YDimension - 1)
-            Zindex = np.random.randint(0, ZDimension - 1)
+            # 平均抽取
+            Xindex = np.random.randint(10, XDimension - 1)
+            Yindex = np.random.randint(10, YDimension - 1)
+            Zindex = np.random.randint(10, ZDimension - 1)
+
+            # 剔除不在体数据范围内的值
+            # if 0 <= Xindexes[v] < XDimension - 1 and 0 <= Yindexes[v] < YDimension - 1 and 0 <= Zindexes[
+            #     v] < ZDimension - 1:
+
+            # Xindex = int(Xindexes[v])
+            # Yindex = int(Yindexes[v])
+            # Zindex = int(Zindexes[v])
 
             # 8个顶点
             points.InsertNextPoint(Xindex, Yindex, Zindex)
@@ -280,3 +301,24 @@ class VolumeData:
         UGrid.SetCells(voxel.GetCellType(), voxelArray)
 
         return UGrid
+
+    def SaveVTKFile(self):
+        """
+        保存为.vtk文件
+        """
+        # 读数据source
+        lineData = self.dataMatrix.reshape(np.size(self.dataMatrix), order='F')
+        # vtkdataArray = numpy2vtk(num_array=data.dataMatrix.flatten(), array_type=vtk.VTK_FLOAT)
+        vtkdataArray = numpy2vtk(num_array=lineData, array_type=vtk.VTK_FLOAT)
+        # 定义一种source，vtkImageData
+        vtkImageData = vtk.vtkImageData()
+        # 定义vtkImageData的各种属性
+        vtkImageData.SetDimensions(np.shape(self.dataMatrix))
+        vtkImageData.SetSpacing(1, 1, 1)
+        vtkImageData.GetPointData().SetScalars(vtkdataArray)
+
+        # 保存为没有拓扑结构的点数据集（imagedata类型）
+        writer = vtk.vtkStructuredPointsWriter()
+        writer.SetInputData(vtkImageData)
+        writer.SetFileName("vtkStructuredPoints.vtk")
+        writer.Write()
