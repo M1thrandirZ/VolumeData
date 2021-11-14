@@ -6,8 +6,8 @@ import numpy as np
 import sys
 
 # 体绘制部分
-test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/BluntFin_256_128_64_8.raw", np.array([256, 128, 64, 8]))
-# test.SaveVTKFile()
+test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/Tooth_256_256_161_16.raw", np.array([256, 256, 161, 16]))
+test.SaveVTKFile()
 # 高斯化
 # test.GaussDataMatrix(5)
 # test.GaussData(np.array([120,64,32]),10)
@@ -29,7 +29,7 @@ test = DB.VolumeData("/Users/zhangjunda/Desktop/volume_data/raw/BluntFin_256_128
 
 # test.ExtractVoxelsToUnstructuredGrid(100)
 
-PB.DrawVTKVolumeRendering(test) # 体绘制
+# PB.DrawVTKVolumeRendering(test) # 体绘制
 # PB.DrawVTKUnstructuredVolumeRendering(test.GenTetraUnstructuredGrid(1600))
 # sys.exit()
 

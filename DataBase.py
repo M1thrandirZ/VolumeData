@@ -21,6 +21,7 @@ class VolumeData:
             self.dataName = str(filepath).split('/')[-1]  # 文件名
             self.dataDimension = filedimention  # 数据维度，x、y、z和每个位置的字节数（8或16）
             self.dataPath = filepath  # 数据路径
+            self.fileName=filepath.split("/")[-1]#文件名，带拓展名
             f = open(file=self.dataPath, mode='rb')
             dataArray = f.read()
             f.close()
@@ -320,5 +321,5 @@ class VolumeData:
         # 保存为没有拓扑结构的点数据集（imagedata类型）
         writer = vtk.vtkStructuredPointsWriter()
         writer.SetInputData(vtkImageData)
-        writer.SetFileName("vtkStructuredPoints.vtk")
+        writer.SetFileName(self.fileName.split(".")[0]+".vtk")
         writer.Write()
